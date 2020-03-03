@@ -181,10 +181,12 @@ def main():
     # (start_t, end_t, prob_bg, embedding)
     with open(args.predict_file, 'rb') as fh:
         utt2predict = pickle.load(fh)
+        print(list(utt2predict.keys())[:10])
 
     # load reco2num_spk file
     if args.num_cluster:
         reco2num_spk = load_reco2num_spk(args.num_cluster)
+        print(reco2num_spk)
     else:
         # Our current setup only supports clustering with known
         # number of speakers. Of course, this information may not

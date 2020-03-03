@@ -141,17 +141,19 @@ class DiarDataset_EVAL(Dataset):
         self.frame_size, self.frame_shift = frame_size, frame_shift
         self.input_transform = input_transform
         self.merge_dis, self.min_dis = merge_dis, min_dis
+        print('DiarDataset_EVAL:\n', '- data -', self.data_dir)
 
     def __len__(self):
         return len(self.uttlist)
 
     def __getitem__(self, idx):
         uttname = self.uttlist[idx]
+        uttname_rttm = uttname.split('-')[0]
         data, samplerate = kaldi_data.load_wav(self.utt2ark[uttname]) 
         Y = feature.stft(data, self.frame_size, self.frame_shift)
         feat = feature.transform(Y, self.input_transform)
 
-        seg_list = self.utt2seg[uttname]
+        seg_list = self.utt2seg.get(uttname, self.utt2seg[uttname_rttm])
         label = self.process_label(seg_list)
         second_per_frame = self.frame_shift * 1.0 / self.rate
         label[:, :2] = (label[:, :2] / second_per_frame).astype(int)
@@ -172,6 +174,7 @@ class DiarDataset_EVAL(Dataset):
         utt2seg = {}
         with open("{}/rttm".format(data_dir), 'r') as fh:
             content = fh.readlines()
+        print(len(content))
         for line in content:
             line = line.strip('\n')
             uttname = line.split()[1]

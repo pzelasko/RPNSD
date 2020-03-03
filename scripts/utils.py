@@ -201,6 +201,7 @@ def evaluate_no_nms(test_loader, model, device, args):
     with torch.no_grad():
         all_boxes = {}
         for i, (uttname, feat, _) in enumerate(test_loader, 1):
+            print(f'{i}. Processing "{uttname}"')
             uttname = uttname[0]
             feat = feat.to(device).float()
             batch_size, seq_len, feat_dim = feat.size(0), feat.size(1), feat.size(2)
@@ -241,6 +242,7 @@ def evaluate_no_nms(test_loader, model, device, args):
 
             embeddings = embeddings.squeeze()
             predict = torch.cat((pred_boxes, scores[:, 0:1], embeddings), 1)
+            print(f'{i}. Finished processing "{uttname}" - storing all boxes in array')
             all_boxes[uttname] = predict.data.cpu().numpy()
 
     with open(det_file, 'wb') as f:

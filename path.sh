@@ -5,4 +5,5 @@ export PATH=$PWD/utils/:$KALDI_ROOT/tools/openfst/bin:$KALDI_ROOT/tools/sph2pipe
 export LC_ALL=C
 
 export PATH=`pwd`/local:$PATH
-export PATH=~/anaconda3/bin:$PATH
+export PATH=~/miniconda3/envs/rpnsd2/bin:$PATH
+export MYPYTHON=/home/pzelasko/miniconda3/envs/rpnsd2/bin/python

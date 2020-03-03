@@ -8,6 +8,8 @@ import argparse
 # The RTTM file has the format
 # SPEAKER iaaa 0 6.14 2.99 <NA> <NA> B <NA> <NA>
 
+# VERSION MODIFIED FOR CHIME6
+
 parser = argparse.ArgumentParser("Create RTTM file from segments file for SWBD SRE dataset")
 parser.add_argument('segments_file', type=str, help='segments file')
 parser.add_argument('output_dir', type=str, help='output directory')
@@ -24,20 +26,22 @@ def create_rttm(segments_file, output_dir):
         starttime = float(line_split[2])
         endtime = float(line_split[3])
         duration = endtime - starttime
-        uttname_split = uttname.split('-')
-        assert len(uttname_split) == 5
-        new_uttname = "-".join(uttname_split[:-1])
+
+        # uttname format:
+        # P05_S02_LIVING.L-0571016-0571796
+        person, session, rest = uttname.split('_')
+        room, rest = rest.split('.')
+        channel, _, __ = rest.split('-')
+
+        assert len(uttname_split) == 3
+        #new_uttname = uttname.split('-')[0]
+        new_uttname = uttname
 
         if len(utt_list)==0 or utt_list[-1] != new_uttname:
             utt_list.append(new_uttname)
 
-        if uttname_split[-1] == '1': # channel 1
-            spkname = uttname_split[2]
-        elif uttname_split[-1] == '2': # channel 2
-            spkname = uttname_split[3]
-        else:
-            raise ValueError("Condition not defined.")
-        rttm_file.write("SPEAKER {} 1 {:.2f} {:.2f} <NA> <NA> {} <NA> <NA>\n".format(new_uttname, starttime, duration, spkname))
+        spkname = f'{person}_{session}'
+        rttm_file.write(f"SPEAKER {new_uttname} 1 {starttime:.2f} {duration:.2f} <NA> <NA> {spkname} <NA> <NA>\n")
     rttm_file.close()
     return utt_list
 
