@@ -1,22 +1,23 @@
 #!/usr/bin/env python3
 
 import os
-import sys
-import torch
-import numpy as np
+import pickle
 import shutil
+import time
+
+import numpy as np
+import torch
 from model.rpn.bbox_transform import bbox_transform_inv
 from model.rpn.bbox_transform import clip_boxes
 from model.utils.config import cfg
-import time
-import pickle
 
 np.set_printoptions(suppress=True)
 
-# write the loss information to tensorboardX 
+
+# write the loss information to tensorboardX
 def record_info(train_info, dev_info, iteration, logger):
-    loss_info = {"train_loss": train_info['loss'], "dev_loss": dev_info['loss'], 
-            "train_rpn_loss_cls": train_info['rpn_loss_cls'], "dev_rpn_loss_cls": dev_info['rpn_loss_cls'],
+    loss_info = {"train_loss": train_info['loss'], "dev_loss": dev_info['loss'],
+                 "train_rpn_loss_cls": train_info['rpn_loss_cls'], "dev_rpn_loss_cls": dev_info['rpn_loss_cls'],
             "train_rpn_loss_box": train_info['rpn_loss_box'], "dev_rpn_loss_box": dev_info['rpn_loss_box'],
             "train_RCNN_loss_cls": train_info['RCNN_loss_cls'], "dev_RCNN_loss_cls": dev_info['RCNN_loss_cls'],
             "train_RCNN_loss_bbox": train_info['RCNN_loss_bbox'], "dev_RCNN_loss_bbox": dev_info['RCNN_loss_bbox'],
@@ -25,13 +26,14 @@ def record_info(train_info, dev_info, iteration, logger):
     return 0
 
 # Training stage.
-def train(train_loader, dev_loader, model, device, optimizer, logger, log_file, args):
+def train(train_loader, dev_loader, model, device, optimizer, logger, args):
     # switch to train mode
     model.train()
 
     # define learning rate scheduler
     if args.scheduler == "reduce":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=args.patience, verbose=True, min_lr=args.min_lr)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1,
+                                                               patience=args.patience, verbose=True, min_lr=args.min_lr)
     elif args.scheduler == "multi":
         scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[100, 150], gamma=0.1)
     else:
@@ -105,19 +107,21 @@ def train(train_loader, dev_loader, model, device, optimizer, logger, log_file, 
                 if args.use_tfboard:
                     record_info(train_info, dev_info, (epoch - 1) * iters_per_epoch + step, logger)
 
-                log_file.write("\nTRAIN epoch {:2d}, iter {:4d}/{:4d}, lr {:.6f}\n".format(
-                    epoch, step, iters_per_epoch, optimizer.param_groups[0]['lr'])) 
-                log_file.write("""TRAIN loss {:.4f}, rpn_loss_cls {:.4f}, rpn_loss_box {:.4f}, RCNN_loss_cls {:.4f}, RCNN_loss_cls_spk {:.4f}, RCNN_loss_bbox {:.4f}, fg {:.0f}, bg {:.0f}\n""".format( \
-                    train_info['loss'], train_info['rpn_loss_cls'], train_info['rpn_loss_box'], 
-                    train_info['RCNN_loss_cls'], train_info['RCNN_loss_cls_spk'], train_info['RCNN_loss_bbox'], train_info['fg_cnt'], train_info['bg_cnt']))
-                log_file.write("TRAIN time: {:.2f}\n".format(end_time - start_time))
-                log_file.flush()
+                print("\nTRAIN epoch {:2d}, iter {:4d}/{:4d}, lr {:.6f}".format(
+                    epoch, step, iters_per_epoch, optimizer.param_groups[0]['lr']))
+                print(
+                    """TRAIN loss {:.4f}, rpn_loss_cls {:.4f}, rpn_loss_box {:.4f}, RCNN_loss_cls {:.4f}, RCNN_loss_cls_spk {:.4f}, RCNN_loss_bbox {:.4f}, fg {:.0f}, bg {:.0f}""".format( \
+                        train_info['loss'], train_info['rpn_loss_cls'], train_info['rpn_loss_box'],
+                        train_info['RCNN_loss_cls'], train_info['RCNN_loss_cls_spk'], train_info['RCNN_loss_bbox'],
+                        train_info['fg_cnt'], train_info['bg_cnt']))
+                print("TRAIN time: {:.2f}".format(end_time - start_time))
 
-                log_file.write("""VALID loss {:.4f}, rpn_loss_cls {:.4f}, rpn_loss_box {:.4f}, RCNN_loss_cls {:.4f}, RCNN_loss_cls_spk {:.4f}, RCNN_loss_bbox {:.4f}, fg {:.0f}, bg {:.0f}\n""".format( \
-                    dev_info['loss'], dev_info['rpn_loss_cls'], dev_info['rpn_loss_box'], dev_info['RCNN_loss_cls'], \
-                    dev_info['RCNN_loss_cls_spk'], dev_info['RCNN_loss_bbox'], dev_info['fg_cnt'], dev_info['bg_cnt']))
-                log_file.write("VALID time: {:.2f}\n".format(end_time_valid - start_time_valid))
-                log_file.flush()
+                print(
+                    """VALID loss {:.4f}, rpn_loss_cls {:.4f}, rpn_loss_box {:.4f}, RCNN_loss_cls {:.4f}, RCNN_loss_cls_spk {:.4f}, RCNN_loss_bbox {:.4f}, fg {:.0f}, bg {:.0f}""".format( \
+                        dev_info['loss'], dev_info['rpn_loss_cls'], dev_info['rpn_loss_box'], dev_info['RCNN_loss_cls'], \
+                        dev_info['RCNN_loss_cls_spk'], dev_info['RCNN_loss_bbox'], dev_info['fg_cnt'],
+                        dev_info['bg_cnt']))
+                print("VALID time: {:.2f}".format(end_time_valid - start_time_valid), flush=True)
 
                 # adjust learning rate
                 if args.scheduler == "reduce":
@@ -201,7 +205,6 @@ def evaluate_no_nms(test_loader, model, device, args):
     with torch.no_grad():
         all_boxes = {}
         for i, (uttname, feat, _) in enumerate(test_loader, 1):
-            print(f'{i}. Processing "{uttname}"')
             uttname = uttname[0]
             feat = feat.to(device).float()
             batch_size, seq_len, feat_dim = feat.size(0), feat.size(1), feat.size(2)
@@ -242,7 +245,6 @@ def evaluate_no_nms(test_loader, model, device, args):
 
             embeddings = embeddings.squeeze()
             predict = torch.cat((pred_boxes, scores[:, 0:1], embeddings), 1)
-            print(f'{i}. Finished processing "{uttname}" - storing all boxes in array')
             all_boxes[uttname] = predict.data.cpu().numpy()
 
     with open(det_file, 'wb') as f:

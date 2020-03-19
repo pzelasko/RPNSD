@@ -3,14 +3,15 @@
 # This script defines diarization dataset
 
 import os
-import numpy as np
-from torch.utils.data import Dataset, DataLoader
-import soundfile as sf
-import feature
-import kaldi_data
 import random
 
+import feature
+import kaldi_data
+import numpy as np
+from torch.utils.data import Dataset
+
 random.seed(7)
+
 
 # This function process the segment labels.
 # It (1) merge two segments of the same speaker if their distance is
@@ -148,7 +149,7 @@ class DiarDataset_EVAL(Dataset):
 
     def __getitem__(self, idx):
         uttname = self.uttlist[idx]
-        uttname_rttm = uttname.split('-')[0]
+        uttname_rttm = uttname.split('.')[0]
         data, samplerate = kaldi_data.load_wav(self.utt2ark[uttname]) 
         Y = feature.stft(data, self.frame_size, self.frame_shift)
         feat = feature.transform(Y, self.input_transform)

@@ -3,11 +3,10 @@
 # This script splits long utterances into short segments
 # making it more convenient for data loading
 
-import os
-import sys
-import numpy as np
-import subprocess
 import argparse
+import subprocess
+
+import numpy as np
 
 parser = argparse.ArgumentParser("Splits long utterances into short segments")
 parser.add_argument('src_dir', type=str, help='source directory')
@@ -15,6 +14,7 @@ parser.add_argument('tgt_dir', type=str, help='target directory')
 parser.add_argument('--uttlen', type=float, default=10.0, help='utterance length')
 parser.add_argument('--sample_rate', type=int, default=8000, help='utterance sample rate')
 parser.add_argument('--debug', type=int, default=0, help='debug mode')
+
 
 def process_wavscp(filename):
     utt2ark = {}
@@ -74,7 +74,6 @@ def main(args):
 
     cnt = 0
     for utt in uttlist:
-        duration = utt2dur[utt]
         ark = utt2ark[utt]
         seg_list, spk_list = utt2seg_list[utt], utt2spk_list[utt]
         seg_array, spk_array = np.array(seg_list), np.array(spk_list)
@@ -89,6 +88,9 @@ def main(args):
             wav_filename = ark
         else:
             raise ValueError("Condition not defined.")
+
+        duration = float(
+            subprocess.check_output(f'soxi -D {wav_filename}', shell=True, universal_newlines=True))  # utt2dur[utt]
 
         num_sub_utts = int(np.ceil(duration / args.uttlen))
         for i in range(num_sub_utts):

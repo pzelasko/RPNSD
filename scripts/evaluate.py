@@ -3,15 +3,16 @@
 # This script computes region proposals, confidence scores and speaker embeddings 
 # with RPNSD model
 
-import os
-import torch
 import argparse
+import os
 import random
-from diarization_dataset import DiarDataset_EVAL
-import numpy as np
 import socket
+
+import numpy as np
+import torch
+from diarization_dataset import DiarDataset_EVAL
 from model.faster_rcnn.resnet import resnet
-from model.utils.config import cfg, cfg_from_file
+from model.utils.config import cfg_from_file
 from utils import evaluate_no_nms
 
 print(socket.gethostname())
@@ -61,10 +62,11 @@ parser.add_argument('--use_gpu', default=0, type=int,
                     help='whether to use gpu for evaluation')
 
 # network parameters
-parser.add_argument('--arch', default='res101', type=str, 
+parser.add_argument('--arch', default='res101', type=str,
                     help='model architecture')
-parser.add_argument('--nclass', default=1284, type=int, 
+parser.add_argument('--nclass', default=1284, type=int,
                     help='number of classes (1283 spk and background)')
+
 
 def main():
     global args
@@ -83,12 +85,13 @@ def main():
         device = torch.device("cpu")
 
     # prepare test set
-    test_dataset = DiarDataset_EVAL(args.test_dir, args.rate, args.frame_size, args.frame_shift, None, args.merge_dis, args.min_dis)
+    test_dataset = DiarDataset_EVAL(args.test_dir, args.rate, args.frame_size, args.frame_shift, None, args.merge_dis,
+                                    args.min_dis)
 
     test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
-            batch_size=args.batch_size,
-            num_workers=args.num_workers,
-            shuffle=False)
+                                              batch_size=args.batch_size,
+                                              num_workers=args.num_workers,
+                                              shuffle=False)
     print("{} TEST segments".format(len(test_dataset)))
 
     if args.cfg_file == "":
@@ -99,8 +102,9 @@ def main():
         cfg_from_file(args.cfg_file)
 
     # initilize the network here.
-    if args.arch == 'res101': 
-        model = resnet(args.nclass, 101, pretrained=args.pretrain_resnet_model, freeze=args.freeze, set_bn_fix=args.set_bn_fix)
+    if args.arch == 'res101':
+        model = resnet(args.nclass, 101, pretrained=args.pretrain_resnet_model, freeze=args.freeze,
+                       set_bn_fix=args.set_bn_fix)
     else:
         raise ValueError("Network is not supported")
     model.create_architecture()
@@ -126,6 +130,7 @@ def main():
     # evaluation
     evaluate_no_nms(test_loader, model, device, args)
     return 0
-            
+
+
 if __name__ == "__main__":
     main()

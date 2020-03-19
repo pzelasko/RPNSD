@@ -3,16 +3,19 @@
 # This script performs post-processing for RPNSD predictions
 # It mainly has two steps (1) clustering (2) NMS
 
-import os
-import numpy as np
-import pickle
 import argparse
+import pickle
+from collections import defaultdict
+from itertools import groupby
+
+import numpy as np
 import torch
 from model.nms.nms_wrapper import nms
+from sklearn.cluster import AgglomerativeClustering, SpectralClustering, KMeans
 from sklearn.preprocessing import normalize
-from sklearn.cluster import AgglomerativeClustering, SpectralClustering, KMeans 
 
 np.set_printoptions(suppress=True)
+
 
 def get_args():
     parser = argparse.ArgumentParser(description="Post-processing for RPNSD outputs")
@@ -35,9 +38,11 @@ def get_args():
                         help="Whether to merge segments")
     parser.add_argument("--rttm_channel", type=int, default=1,
                         help="RTTM channel")
-  
+    parser.add_argument("--merge-chime6-segments", type=bool, default=False, help="")
+
     args = parser.parse_args()
     return args
+
 
 # convert the detection output to diarization results
 def post_process(utt2predict, args):
@@ -50,11 +55,12 @@ def post_process(utt2predict, args):
         if args.merge_seg:
             predict = merge_segments(predict, args.merge_len)
         # remove the segments that are too short
-        if args.remove_short: 
+        if args.remove_short:
             predict = predict[predict[:, 1] - predict[:, 0] > args.min_len]
         predict = predict[predict[:, 0].argsort()]
         utt2predict_new[utt] = predict
     return utt2predict_new
+
 
 def merge_segments(seg_array, merge_dis):
     seg_array = seg_array[seg_array[:, 0].argsort()]
@@ -68,6 +74,7 @@ def merge_segments(seg_array, merge_dis):
     seg_array = seg_array[seg_array[:, 0].argsort()]
     return seg_array
 
+
 def merge_seg(seg_array, merge_dis):
     seg_list = []
     for i in range(len(seg_array)):
@@ -80,15 +87,19 @@ def merge_seg(seg_array, merge_dis):
                 seg_list[-1][1] = max(seg_list[-1][1], seg_array[i, 1])
     return np.array(seg_list)
 
+
 def write_rttm(utt2seg, rttm_file, rttm_channel):
     uttlist = list(utt2seg.keys())
     uttlist.sort()
     with open(rttm_file, 'w') as fh:
         for utt in uttlist:
-            seg = utt2seg[utt]
-            for i in range(len(seg)):
-                fh.write("SPEAKER {} {} {:.2f} {:.2f} <NA> <NA> {} <NA> <NA>\n".format(utt, rttm_channel, seg[i, 0], seg[i, 1] - seg[i, 0], int(seg[i, 2])))
+            segments = utt2seg[utt]
+            for begin, end, speaker in segments:
+                line = f"SPEAKER {utt} {rttm_channel} {begin:.2f} {end - begin:.2f} <NA> <NA> {int(speaker)} <NA> <NA>"
+                print(line)
+                print(line, file=fh)
     return 0
+
 
 def apply_nms(utt2predict, nms_thres, device):
     # predict has the shape [*, 4]
@@ -105,7 +116,7 @@ def apply_nms(utt2predict, nms_thres, device):
             predict = utt_predict[utt_predict[:, 3] == spk, :]
             predict[:, :2] = (predict[:, :2] * 100.0).astype(int)
             predict = torch.from_numpy(predict).to(device)
-            
+
             # apply nms
             # convert to 4 dim for NMS
             predict_input = torch.zeros(predict.size(0), 5).type_as(predict)
@@ -126,12 +137,25 @@ def apply_nms(utt2predict, nms_thres, device):
         utt2seg[utt] = segments_array
     return utt2seg
 
+
 # perform clustering with speaker embeddings
 def cluster(utt2predict, reco2num_spk, args):
     # prediction should have the shape [*, 3 + embedding_size]
     # (start_t, end_t, prob_bg, embedding)
     utt2predict_new = {}
-    device = torch.device("cpu")
+
+    if args.merge_chime6_segments:
+        feat_dim = next(iter(utt2predict.values())).shape[-1]
+        utt2predict_grouped = defaultdict(lambda: np.empty((0, feat_dim)))
+        for group_key, preds in groupby(sorted(utt2predict.items()), key=lambda tpl: tpl[0].split('.')[0]):
+            orig_keys, preds = zip(*preds)
+            for key, pred in zip(orig_keys, preds):
+                offset = float(key.split('-')[1]) / 10  # 'S02_U02.ENG-000123-00423'
+                pred[:, 0] += offset
+                pred[:, 1] += offset
+            concat_preds = np.concatenate(preds, axis=0)
+            utt2predict_grouped[group_key] = concat_preds
+        utt2predict = utt2predict_grouped
 
     uttlist = list(utt2predict.keys())
     uttlist.sort()
@@ -142,13 +166,14 @@ def cluster(utt2predict, reco2num_spk, args):
         # only keeps the segments with smaller background probability
         predict = predict[predict[:, 2] < args.thres]
         # remove the segments that are too short
-        if args.remove_short: 
+        if args.remove_short:
             predict = predict[predict[:, 1] - predict[:, 0] > args.min_len]
         predict = predict[predict[:, 0].argsort()]
 
         # clustering
         if args.cluster_type == "ahc":
-            model = AgglomerativeClustering(n_clusters=reco2num_spk[utt], affinity="euclidean", compute_full_tree=True, linkage="ward")
+            model = AgglomerativeClustering(n_clusters=reco2num_spk[utt], affinity="euclidean", compute_full_tree=True,
+                                            linkage="ward")
         elif args.cluster_type == "spec":
             model = SpectralClustering(n_clusters=reco2num_spk[utt], assign_labels="discretize", random_state=0)
         elif args.cluster_type == "kmeans":
@@ -162,6 +187,7 @@ def cluster(utt2predict, reco2num_spk, args):
 
     return utt2predict_new
 
+
 def load_reco2num_spk(filename):
     reco2num_spk = {}
     with open(filename, 'r') as fh:
@@ -173,6 +199,7 @@ def load_reco2num_spk(filename):
         reco2num_spk[uttname] = num_spk
     return reco2num_spk
 
+
 def main():
     args = get_args()
 
@@ -181,12 +208,10 @@ def main():
     # (start_t, end_t, prob_bg, embedding)
     with open(args.predict_file, 'rb') as fh:
         utt2predict = pickle.load(fh)
-        print(list(utt2predict.keys())[:10])
 
     # load reco2num_spk file
     if args.num_cluster:
         reco2num_spk = load_reco2num_spk(args.num_cluster)
-        print(reco2num_spk)
     else:
         # Our current setup only supports clustering with known
         # number of speakers. Of course, this information may not
@@ -209,6 +234,7 @@ def main():
     # write RTTM file
     write_rttm(utt2seg, args.rttm_file, args.rttm_channel)
     return 0
+
 
 if __name__ == "__main__":
     main()

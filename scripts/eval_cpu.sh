@@ -11,6 +11,13 @@ batch_size=1
 num_workers=4
 seed=7
 arch=res101
+sampling_rate=16000
+
+frame_shift_seconds=0.01
+frame_size_seconds=0.064
+
+frame_shift=$(python3 -c "print(int($frame_shift_seconds * $sampling_rate))")
+frame_size=$(python3 -c "print(int($frame_size_seconds * $sampling_rate))")
 
 . path.sh
 . cmd.sh
@@ -44,7 +51,8 @@ if [ $stage -le 0 ]; then
 			  scripts/evaluate.py $exp_dir $sdata/JOB $modelfile \
 	      --cfg_file $cfg_file --output_dir $output_dir/JOB --batch_size $batch_size --num_workers $num_workers \
 	      --seed $seed --arch $arch \
-	      --nclass $nclass --use_gpu 0 || exit 1;
+	      --nclass $nclass --use_gpu 0 --rate $sampling_rate \
+	      --frame_size $frame_size --frame_shift $frame_shift || exit 1;
 fi
 
 # merge predictions of different jobs

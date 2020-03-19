@@ -1,40 +1,36 @@
 from __future__ import absolute_import
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from model.utils.config import cfg
+from model.utils.net_utils import _smooth_l1_loss
 from torch.autograd import Variable
 
-from model.utils.config import cfg
-from .proposal_layer import _ProposalLayer
 from .anchor_target_layer import _AnchorTargetLayer
-from model.utils.net_utils import _smooth_l1_loss
+from .proposal_layer import _ProposalLayer
 
-import numpy as np
-import math
-import pdb
-import time
 
 class _RPN(nn.Module):
     """ region proposal network """
-    def __init__(self, din):
+
+    def __init__(self, din, frame_size):
         super(_RPN, self).__init__()
-        
+
         self.din = din  # get depth of input feature map, e.g., 512
         self.anchor_scales = cfg.ANCHOR_SCALES
-        self.feat_stride = cfg.FEAT_STRIDE[0] # 16
+        self.feat_stride = cfg.FEAT_STRIDE[0]  # 16
 
         # define the convrelu layers processing input feature map
         self.RPN_Conv = nn.Conv2d(self.din, 512, 3, 1, 1, bias=True)
 
         # define bg/fg classifcation score layer
         self.nc_score_out = len(self.anchor_scales) * 2
-        # TODO
-        self.RPN_cls_score = nn.Conv2d(512, self.nc_score_out, (16, 1), 1, 0)
+        self.RPN_cls_score = nn.Conv2d(512, self.nc_score_out, (int((frame_size / 2 + 1) / self.feat_stride), 1), 1, 0)
 
         # define anchor box offset prediction layer
         self.nc_bbox_out = len(self.anchor_scales) * 2
-        # TODO
-        self.RPN_bbox_pred = nn.Conv2d(512, self.nc_bbox_out, (16, 1), 1, 0)
+        self.RPN_bbox_pred = nn.Conv2d(512, self.nc_bbox_out, (int((frame_size / 2 + 1) / self.feat_stride), 1), 1, 0)
 
         # define proposal layer
         self.RPN_proposal = _ProposalLayer(self.feat_stride, self.anchor_scales)

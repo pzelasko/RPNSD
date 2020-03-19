@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-import os
-import sys
 import argparse
 
 # This script creates the RTTM file based on the segments file.
@@ -22,25 +20,26 @@ def create_rttm(segments_file, output_dir):
     for line in content:
         line = line.strip('\n')
         line_split = line.split()
-        uttname = line_split[1]
+        uttname = line_split[0]
+        wav_name = line_split[1]
         starttime = float(line_split[2])
         endtime = float(line_split[3])
         duration = endtime - starttime
 
         # uttname format:
-        # P05_S02_LIVING.L-0571016-0571796
-        person, session, rest = uttname.split('_')
+        # P56_S24_U01_NOLOCATION.CH4-0910368-0910452
+        person, session, array, rest = uttname.split('_')
         room, rest = rest.split('.')
         channel, _, __ = rest.split('-')
 
-        assert len(uttname_split) == 3
-        #new_uttname = uttname.split('-')[0]
-        new_uttname = uttname
+        # assert len(uttname_split) == 3
+        # new_uttname = uttname.split('-')[0]
+        new_uttname = wav_name
 
-        if len(utt_list)==0 or utt_list[-1] != new_uttname:
+        if len(utt_list) == 0 or utt_list[-1] != new_uttname:
             utt_list.append(new_uttname)
 
-        spkname = f'{person}_{session}'
+        spkname = f'{person}'
         rttm_file.write(f"SPEAKER {new_uttname} 1 {starttime:.2f} {duration:.2f} <NA> <NA> {spkname} <NA> <NA>\n")
     rttm_file.close()
     return utt_list

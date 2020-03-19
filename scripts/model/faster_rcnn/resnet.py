@@ -2,24 +2,21 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-from model.utils.config import cfg
-from model.faster_rcnn.faster_rcnn import _fasterRCNN
+import math
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.autograd import Variable
-import math
-import torch.utils.model_zoo as model_zoo
-import pdb
+from model.faster_rcnn.faster_rcnn import _fasterRCNN
+from model.utils.config import cfg
 
 __all__ = ['ResNet', 'resnet18', 'resnet34', 'resnet50', 'resnet101',
-       'resnet152']
+           'resnet152']
+
 
 def conv3x3(in_planes, out_planes, stride=1):
   "3x3 convolution with padding"
   return nn.Conv2d(in_planes, out_planes, kernel_size=3, stride=stride,
-           padding=1, bias=False)
+                   padding=1, bias=False)
 
 
 class BasicBlock(nn.Module):
@@ -199,13 +196,14 @@ def resnet152(pretrained=False):
   return model
 
 class resnet(_fasterRCNN):
-  def __init__(self, classes, num_layers=101, pretrained=False, freeze=False, set_bn_fix=False, embed_size=128):
+  def __init__(self, classes, num_layers=101, pretrained=False, freeze=False, set_bn_fix=False, embed_size=128,
+               frame_size=512):
     self.dout_base_model = 1024
     self.pretrained = pretrained
     self.freeze, self.set_bn_fix = freeze, set_bn_fix
     self.embed_size = embed_size
 
-    _fasterRCNN.__init__(self, classes, True)
+    _fasterRCNN.__init__(self, classes, True, frame_size)
 
   def _init_modules(self):
     resnet = resnet101()
